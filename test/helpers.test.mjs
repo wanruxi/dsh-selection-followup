@@ -225,6 +225,8 @@ test('the source name is unique against the neighbouring quote plugin', () => {
 
 test('the plugin declares the slot it needs and its locale keys', () => {
   assert.equal(plugin.name, 'dsh-selection-followup');
+  // The trigger channel is looked up lazily: naming it here would make the
+  // plugin fail to load on a host that lacks it.
   assert.deepEqual(plugin.inject, ['slots', 'locale']);
   assert.equal(typeof plugin.apply, 'function');
 });
