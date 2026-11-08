@@ -66,7 +66,8 @@ npm test      # node --test test/helpers.test.mjs
 npm run check # 两半都做语法检查
 ```
 
-覆盖引用格式、空白规整、按钮贴边收拢、离屏判定、会话隔离、插入重试与失败回退。
+覆盖引用格式、空白规整、按钮贴边收拢、离屏判定、会话隔离、插入重试与失败回退，
+以及引用卡片那条线：codec 往返、卡片插入的 outcome、退化成纯文本的路径。
 界面效果本身仍需人工看一遍。
 
 ## 安装
@@ -95,7 +96,7 @@ dsh plugin --profile <profile> add dsh-selection-followup
 | 文件 | 作用 |
 | --- | --- |
 | `lib/index.js` | 宿主半边——空实现，只为让 bundle 有个可加载入口 |
-| `lib/client.js` | 浏览器半边——选区监听、浮动按钮、写入输入框 |
+| `lib/client.js` | 浏览器半边——选区监听、浮动按钮、把选区变成引用卡片 |
 | `test/helpers.test.mjs` | 纯函数的离线测试 |
 | `cordis.patch.yml` | 把插件行插进插件树的 bundle patch |
 | `icon.svg` | 插件图标 |
