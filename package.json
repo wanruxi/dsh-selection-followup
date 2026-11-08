@@ -1,0 +1,55 @@
+{
+  "name": "dsh-selection-followup",
+  "version": "0.1.0",
+  "description": "Select text in a DeepSeek Harness conversation, click the floating button, and the text is quoted into the composer as a Markdown block quote ready for a follow-up question.",
+  "license": "MIT",
+  "author": "wanruxi",
+  "type": "module",
+  "icon": "icon.svg",
+  "main": "lib/index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wanruxi/dsh-selection-followup.git"
+  },
+  "homepage": "https://github.com/wanruxi/dsh-selection-followup#readme",
+  "bugs": {
+    "url": "https://github.com/wanruxi/dsh-selection-followup/issues"
+  },
+  "keywords": [
+    "deepseek",
+    "harness",
+    "dsh",
+    "dsh-plugin",
+    "selection",
+    "quote",
+    "composer"
+  ],
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "lib",
+    "assets",
+    "icon.svg",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "dsh": ">=0.2.0-rc.2 || >=0.2.1-rc.2"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
+    }
+  }
+}
