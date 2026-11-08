@@ -1,6 +1,6 @@
 {
   "name": "dsh-selection-followup",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Select text in a DeepSeek Harness conversation, click the floating button, and the text is quoted into the composer as a Markdown block quote ready for a follow-up question.",
   "license": "MIT",
   "author": "wanruxi",
@@ -33,11 +33,16 @@
   "files": [
     "lib",
     "assets",
+    "test",
     "icon.svg",
     "cordis.patch.yml",
     "README.md",
     "LICENSE"
   ],
+  "scripts": {
+    "check": "node --check lib/client.js && node --check lib/index.js",
+    "test": "node --test test/helpers.test.mjs"
+  },
   "engines": {
     "dsh": ">=0.2.0-rc.2 || >=0.2.1-rc.2"
   },
