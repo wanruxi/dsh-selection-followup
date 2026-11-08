@@ -1,7 +1,7 @@
 {
   "name": "dsh-selection-followup",
-  "version": "0.2.1",
-  "description": "Select text in a DeepSeek Harness conversation, click the floating button, and the text is quoted into the composer as a Markdown block quote ready for a follow-up question.",
+  "version": "0.3.0",
+  "description": "Select text in a DeepSeek Harness conversation, click the floating button, and the selection becomes a reference card in the composer, ready for a follow-up question.",
   "license": "MIT",
   "author": "wanruxi",
   "type": "module",

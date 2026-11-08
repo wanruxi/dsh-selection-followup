@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.0
+
+- The quote now lands in the composer as a **reference card** — the same node the
+  `@` file mention uses — instead of a run of `> ` text. The card is visible and
+  removable, and the model still receives the original quoted lines.
+- The plugin registers its own reference source (`@selection-followup`) together
+  with a codec. A source without a codec makes every send that carries the card
+  fail with `no serializer for reference source`, so the two always ship as one.
+- The insertion point is nudged onto a fresh paragraph before the card goes in,
+  because Markdown lazy continuation would otherwise absorb the quote into the
+  paragraph above it.
+- Plain block-quote insertion is kept as the fallback for hosts that expose no
+  trigger controller for the session, so the pill never turns into a dead click.
+- `quoteInto()` reports `chip` / `text` / `failed` / `empty` / `unavailable`, and
+  the tests pin each of those outcomes plus the codec round trip.
+
 ## 0.2.1
 
 - The pill is clamped by its measured box instead of a hard-coded 96×30 guess,

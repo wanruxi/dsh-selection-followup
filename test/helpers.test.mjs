@@ -56,7 +56,7 @@ function load() {
 }
 
 const { plugin } = load();
-const { normalize, asQuote, place, offScreen, sessionOf, insert } = plugin.__test;
+const { normalize, asQuote, place, offScreen, sessionOf, leadingBreak, quoteInto } = plugin.__test;
 
 test('normalize collapses CRLF, trailing spaces and blank runs', () => {
   assert.equal(normalize('a  \r\nb\r\n\r\n\r\n\r\nc\n\n'), 'a\nb\n\nc');
@@ -124,7 +124,53 @@ test('sessionOf reads the nearest session scope', () => {
   assert.equal(sessionOf(lonely), undefined);
 });
 
-test('insert retries a stale span before rewriting the draft', () => {
+test('leading break only appears when the caret has text in front of it', () => {
+  const at = (start) => ({ captureInsertion: () => ({ start, end: start, draftRev: 1 }), insertText: () => true });
+  assert.equal(leadingBreak(at(0), ''), '');
+  assert.equal(leadingBreak(at(4), 'abcd'), '\n\n');
+  assert.equal(leadingBreak(at(4), 'abc\n'), '\n');
+  assert.equal(leadingBreak(at(5), 'abc\n\n'), '');
+});
+
+test('quoteInto inserts a reference chip when the host offers a controller', () => {
+  const seen = [];
+  const actions = {
+    captureInsertion: () => ({ start: 0, end: 0, draftRev: 1 }),
+    insertText: () => true,
+  };
+  const controller = {
+    execute: (outcome, span) => {
+      seen.push({ outcome, span });
+      return true;
+    },
+  };
+  assert.equal(quoteInto(actions, controller, '', 'one\ntwo  ', 'Quote'), 'chip');
+  assert.equal(seen.length, 1);
+  const reference = seen[0].outcome.insert;
+  assert.equal(reference.source, 'selection-followup');
+  assert.equal(reference.ref, 'one\ntwo');
+  assert.equal(reference.appearance, 'session');
+  assert.equal(reference.clipboardText, '> one\n> two\n\n');
+  assert.equal(seen[0].span.draftRev, 1);
+});
+
+test('quoteInto falls back to a block quote when no controller is available', () => {
+  let written = null;
+  const actions = {
+    captureInsertion: () => ({ draftRev: 1 }),
+    insertText: (text) => {
+      written = text;
+      return true;
+    },
+    setDraft: () => {
+      throw new Error('must not rewrite the draft when the retry succeeds');
+    },
+  };
+  assert.equal(quoteInto(actions, null, '', 'x'), 'text');
+  assert.equal(written, '> x\n\n');
+});
+
+test('quoteInto retries a stale span before rewriting the draft', () => {
   const calls = [];
   let attempt = 0;
   const actions = {
@@ -137,11 +183,11 @@ test('insert retries a stale span before rewriting the draft', () => {
       throw new Error('must not rewrite the draft when a retry succeeds');
     },
   };
-  assert.equal(insert(actions, '', '> x\n\n'), true);
+  assert.equal(quoteInto(actions, null, '', 'x'), 'text');
   assert.deepEqual(calls, [1, 2]);
 });
 
-test('insert falls back to appending when both spans are refused', () => {
+test('quoteInto appends when both spans are refused', () => {
   let written = null;
   const actions = {
     captureInsertion: () => null,
@@ -150,13 +196,31 @@ test('insert falls back to appending when both spans are refused', () => {
       written = text;
     },
   };
-  assert.equal(insert(actions, 'existing  \n', '> x\n\n'), true);
+  assert.equal(quoteInto(actions, null, 'existing  \n', 'x'), 'text');
   assert.equal(written, 'existing\n\n> x\n\n');
 });
 
-test('insert reports failure instead of pretending', () => {
+test('quoteInto reports failure instead of pretending', () => {
   const actions = { captureInsertion: () => null, insertText: () => false, setDraft: () => { throw new Error('locked'); } };
-  assert.equal(insert(actions, '', '> x\n\n'), false);
+  assert.equal(quoteInto(actions, null, '', 'x'), 'failed');
+});
+
+test('quoteInto rejects empty selections and a closed composer', () => {
+  const actions = { captureInsertion: () => ({ draftRev: 1 }), insertText: () => true };
+  assert.equal(quoteInto(actions, null, '', '   \n\n '), 'empty');
+  assert.equal(quoteInto({}, null, '', 'x'), 'unavailable');
+});
+
+test('the quote source serializes back to the same block quote', async () => {
+  const spec = plugin.__test.sourceSpec;
+  assert.equal(spec.trigger, '@');
+  assert.equal(spec.codec.clipboardText('one\ntwo'), '> one\n> two\n\n');
+  assert.equal(await spec.codec.serialize('one\ntwo  '), '> one\n> two\n\n');
+});
+
+test('the source name is unique against the neighbouring quote plugin', () => {
+  // `@quote` belongs to dsh-quote-to-composer; a second registration throws.
+  assert.notEqual(plugin.__test.sourceSpec.name, 'quote');
 });
 
 test('the plugin declares the slot it needs and its locale keys', () => {
