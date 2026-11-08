@@ -56,7 +56,7 @@ function load() {
 }
 
 const { plugin } = load();
-const { normalize, asQuote, place, sessionOf, insert } = plugin.__test;
+const { normalize, asQuote, place, offScreen, sessionOf, insert } = plugin.__test;
 
 test('normalize collapses CRLF, trailing spaces and blank runs', () => {
   assert.equal(normalize('a  \r\nb\r\n\r\n\r\n\r\nc\n\n'), 'a\nb\n\nc');
@@ -98,6 +98,22 @@ test('place falls back to the selection rect when there is no pointer', () => {
   const at = place(null, { left: 500, top: 400, bottom: 420, width: 100, height: 20 });
   assert.equal(at.top, 400 - 30 - 8);
   assert.equal(at.left, 500 + 50 - 48);
+});
+
+test('place clamps with the measured box, not the first-frame guess', () => {
+  const rect = { left: 0, top: 0, bottom: 0, width: 0, height: 0 };
+  const wide = place({ x: 1180, y: 300 }, rect, { width: 180, height: 34 }, { width: 1200, height: 800 });
+  assert.ok(wide.left + 180 <= 1192, 'wide pill stays inside the right edge');
+  const tall = place({ x: 300, y: 780 }, rect, { width: 90, height: 48 }, { width: 1200, height: 800 });
+  assert.ok(tall.top + 48 <= 792, 'tall pill stays inside the bottom edge');
+});
+
+test('a selection scrolled out of view is not offered', () => {
+  const view = { width: 1200, height: 800 };
+  assert.equal(offScreen({ left: 0, right: 100, top: -40, bottom: -10 }, view), true);
+  assert.equal(offScreen({ left: 0, right: 100, top: 820, bottom: 860 }, view), true);
+  assert.equal(offScreen({ left: -200, right: -50, top: 100, bottom: 120 }, view), true);
+  assert.equal(offScreen({ left: 100, right: 200, top: 100, bottom: 120 }, view), false);
 });
 
 test('sessionOf reads the nearest session scope', () => {

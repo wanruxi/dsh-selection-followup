@@ -1,10 +1,10 @@
 # dsh-selection-followup
 
 Select text anywhere in a DeepSeek Harness conversation and a small **追问** pill
-appears above the selection. Click it and the selected text is quoted into the
+appears next to the selection. Click it and the selected text is quoted into the
 composer as a Markdown block quote, ready for a follow-up question.
 
-在 DeepSeek Harness 对话里选中一段文字，选区上方会浮出一个小「追问」按钮。
+在 DeepSeek Harness 对话里选中一段文字，选区旁边会浮出一个小「追问」按钮。
 点一下，选中的内容就变成 Markdown 引用块落进输入框，接着问就行。
 
 <p align="center">
@@ -18,9 +18,17 @@ composer as a Markdown block quote, ready for a follow-up question.
   / 只在非空选区内出现；输入框内部和按钮自己的选区都跳过，打字不会误触发。
 - The pill follows the pointer: it opens just below-right of where the mouse
   button came up, and above the selection for a keyboard selection. Near a
-  viewport edge it flips to the other side, so it is always fully visible.
+  viewport edge it flips to the other side, and its real rendered size is used
+  for the clamp, so a long label in any language stays fully visible.
   / 按钮跟着指针走：鼠标松开处右下方弹出，键盘选区则落在选区上方；靠近窗口边缘会翻到
-  另一侧，永远完整可见。
+  另一侧，贴边收拢用的是按钮实测尺寸，任何语言的长标签都不会被切掉。
+- After a successful quote the pill turns into a brief **已引用 / Quoted** receipt.
+  It does not take pointer events, so it never blocks the next click.
+  / 引用成功后按钮原地变成一句「已引用」回执，短暂停留；它不接收鼠标事件，不会挡住你
+  下一次点击。
+- A selection scrolled out of view offers nothing — the pill is not pinned to the
+  screen edge for text the reader can no longer see.
+  / 选区滚出可视范围就不再出现按钮，不会把按钮钉在屏幕边缘去引用一段你已经看不见的字。
 - `Ctrl+Shift+Q` quotes the current selection without touching the mouse. Ctrl
   only, on every platform — `Cmd+Shift+Q` is macOS "log out".
   / `Ctrl+Shift+Q` 不用鼠标也能引用当前选区。所有平台都只认 Ctrl——`Cmd+Shift+Q` 在
