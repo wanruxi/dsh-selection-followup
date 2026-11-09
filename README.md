@@ -109,7 +109,13 @@ dsh plugin --profile <profile> add dsh-selection-followup
 声明的是实测下限。
 
 宿主若把 `sinkSerialized` / `deps.defaultSink` 改名，卡片照常能加能删，只是不再自动
-追加到消息里。
+追加到消息里；这种情况下浏览器控制台会有一行 `[selection-followup] could not hook this
+compose box` 的警告，而不是静默失效。
+
+`conversation` 服务是用 `ctx.get('conversation')` 取的，没有写进 `inject`。原因是动态
+插件拿到的 `ctx` 是个代理：属性访问只对 `inject` 里声明过的服务放行，`ctx.get()` 才是
+不过门禁的可选查找。写进 `inject` 会让插件在缺这个服务的宿主上整体加载失败，而卡片
+界面本来还能用。
 
 ## 文件分工
 

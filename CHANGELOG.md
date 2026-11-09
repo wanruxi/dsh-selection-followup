@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.2
+
+- **Fixed: quotes never reached the model.** The send hook was looked up with a
+  property read (`ctx.conversation`), and the dynamic client facade only allows
+  that for services named in the plugin's `inject` — it throws for anything else.
+  The throw was swallowed, the lookup returned null, and the three-point send
+  patch was silently never installed, so cards were cleared with the draft and
+  the message went out bare. The lookup now goes through `ctx.get('conversation')`,
+  the optional channel the facade exposes without a declaration.
+- Each door into the input hub is now guarded separately, so a session whose
+  binding is not retained yet falls through to the other door instead of
+  abandoning the whole lookup.
+- The hook retries for about five seconds while the dock mounts ahead of the
+  session binding, and warns once in the console if it still cannot hook the
+  compose box — a missing send path no longer fails silently.
+
 ## 0.4.1
 
 - The quote cards now line up with the composer card instead of sitting flush

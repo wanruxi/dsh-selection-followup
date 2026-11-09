@@ -65,7 +65,7 @@ function load() {
 
 const { plugin } = load();
 const { normalize, asQuote, quoteBlock, composeOutgoing, previewOf, place, offScreen, sessionOf } = plugin.__test;
-const { cardsFor, addCard, removeCard, takeCards, restoreCards, subscribe, attachSender } = plugin.__test;
+const { cardsFor, addCard, removeCard, takeCards, restoreCards, subscribe, attachSender, shellFor } = plugin.__test;
 
 test('normalize collapses CRLF, trailing spaces and blank runs', () => {
   assert.equal(normalize('a  \r\nb\r\n\r\n\r\n\r\nc\n\n'), 'a\nb\n\nc');
@@ -278,6 +278,30 @@ test('a shell without the send seam is left alone', () => {
   assert.equal(attachSender(null, 's1'), null);
   assert.equal(attachSender({}, 's1'), null);
   assert.equal(attachSender({ deps: {} }, 's1'), null);
+});
+
+test('shellFor only ever reaches services through ctx.get, never a property read', () => {
+  // The dynamic client facade hands out a proxy: `ctx.get(name)` is the optional
+  // lookup, while `ctx[name]` is gated on the plugin's declared injects and
+  // throws (and reports a failure) for anything else. Reading it used to make
+  // this whole lookup fail, so the send seam was never patched.
+  const hub = { shell: (id) => ({ id }) };
+  const root = new Proxy(
+    {},
+    {
+      get(_target, prop) {
+        if (prop === 'get') return (name) => (name === 'conversation' ? { input: hub } : undefined);
+        throw new Error(`service "${String(prop)}" is not declared by your plugin`);
+      },
+    },
+  );
+  assert.deepEqual(shellFor(root, 's1'), { id: 's1' });
+});
+
+test('shellFor survives a host that has no conversation service', () => {
+  assert.equal(shellFor({ get: () => undefined }, 's1'), null);
+  assert.equal(shellFor(null, 's1'), null);
+  assert.equal(shellFor({ get: () => ({ input: {} }) }, 's1'), null);
 });
 
 test('the plugin declares the slots it needs and its locale keys', () => {
