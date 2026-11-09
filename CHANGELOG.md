@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.1
+
+- The quote cards now line up with the composer card instead of sitting flush
+  against the window edge. The dock spans the whole column while the composer is
+  an inset, centred box, so the cards rebuild the host's own two rules —
+  `--dsh-composer-side-clearance` as padding and `--dsh-composer-card-max-width`
+  as the cap. Measured against the composer in four widths (1200, 700, and the
+  embedded 600 / 360 variants): both edges match to the pixel.
+
 ## 0.4.0
 
 - The quote no longer enters the composer at all. Selecting text and clicking the
