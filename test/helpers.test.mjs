@@ -1,10 +1,10 @@
 // Offline checks for the pure helpers in lib/client.js.
 //
 // No DOM implementation is installed here, so the small surface the helpers
-// actually touch (window size, getSelection, closest/getAttribute) is faked.
-// That is enough to pin the decisions that are easy to get wrong — quoting,
-// whitespace normalisation, placement clamping and session scoping — without
-// booting a browser.
+// actually touch (window size, getSelection, closest/getAttribute,
+// sessionStorage) is faked. That is enough to pin the decisions that are easy
+// to get wrong — quoting, whitespace normalisation, placement clamping, session
+// scoping, the card store, and the send-time patch — without booting a browser.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -17,28 +17,36 @@ const source = readFileSync(join(here, '..', 'lib', 'client.js'), 'utf8');
 /** Load the browser half into a fake module table and hand back the plugin. */
 function load() {
   let plugin = null;
+  const store = new Map();
   const fakeWindow = {
     innerWidth: 1200,
     innerHeight: 800,
     getSelection: () => null,
     addEventListener() {},
     removeEventListener() {},
+    sessionStorage: {
+      getItem: (key) => (store.has(key) ? store.get(key) : null),
+      setItem: (key, value) => store.set(key, String(value)),
+    },
   };
   const scope = {
-    window: fakeWindow,
     document: { addEventListener() {}, removeEventListener() {}, body: null },
-    requestAnimationFrame: () => 0,
-    cancelAnimationFrame() {},
-    console,
   };
   globalThis.window = fakeWindow;
   globalThis.document = scope.document;
-  globalThis.requestAnimationFrame = scope.requestAnimationFrame;
-  globalThis.cancelAnimationFrame = scope.cancelAnimationFrame;
+  globalThis.requestAnimationFrame = () => 0;
+  globalThis.cancelAnimationFrame = () => {};
   globalThis.__ModuleLoader__ = {
     load(options) {
       const require = (name) => {
-        if (name === 'react') return { createElement: () => null, useRef: () => ({}), useState: () => [null, () => {}], useEffect() {}, useCallback: (f) => f };
+        if (name === 'react')
+          return {
+            createElement: () => null,
+            useRef: () => ({}),
+            useState: () => [null, () => {}],
+            useEffect() {},
+            useCallback: (f) => f,
+          };
         if (name === 'react-dom') return { createPortal: () => null };
         throw new Error('unexpected require: ' + name);
       };
@@ -49,14 +57,15 @@ function load() {
   new Function('window', 'document', 'requestAnimationFrame', 'cancelAnimationFrame', source)(
     fakeWindow,
     scope.document,
-    scope.requestAnimationFrame,
-    scope.cancelAnimationFrame,
+    globalThis.requestAnimationFrame,
+    globalThis.cancelAnimationFrame,
   );
-  return { plugin, window: fakeWindow };
+  return { plugin, window: fakeWindow, store };
 }
 
 const { plugin } = load();
-const { normalize, asQuote, place, offScreen, sessionOf, leadingBreak, quoteInto } = plugin.__test;
+const { normalize, asQuote, quoteBlock, composeOutgoing, previewOf, place, offScreen, sessionOf } = plugin.__test;
+const { cardsFor, addCard, removeCard, takeCards, restoreCards, subscribe, attachSender } = plugin.__test;
 
 test('normalize collapses CRLF, trailing spaces and blank runs', () => {
   assert.equal(normalize('a  \r\nb\r\n\r\n\r\n\r\nc\n\n'), 'a\nb\n\nc');
@@ -68,17 +77,38 @@ test('asQuote prefixes every line and keeps a blank line after', () => {
   assert.equal(asQuote('one\n\ntwo'), '> one\n>\n> two\n\n');
 });
 
-test('a follow-up typed behind the quote cannot be swallowed', () => {
-  const draft = asQuote('quoted line') + 'my question';
-  const lines = draft.split('\n');
-  assert.deepEqual(lines, ['> quoted line', '', 'my question']);
-  // Markdown lazy continuation only absorbs text directly under a quote line.
-  assert.ok(!lines[2].startsWith('>'));
-  assert.equal(lines[1], '');
+test('quoteBlock is the same block quote without the trailing blank line', () => {
+  assert.equal(quoteBlock('one\ntwo  '), '> one\n> two');
+  assert.equal(quoteBlock('one\n\ntwo'), '> one\n>\n> two');
+});
+
+test('composeOutgoing puts the question first and every quote after it', () => {
+  assert.equal(composeOutgoing('why?', [{ text: 'a' }]), 'why?\n\n> a');
+  assert.equal(composeOutgoing('  ', [{ text: 'a' }]), '> a');
+  assert.equal(composeOutgoing('why?', []), 'why?');
+  assert.equal(
+    composeOutgoing('why?', [{ text: 'a\nb' }, { text: 'c' }]),
+    'why?\n\n> a\n> b\n\n> c',
+  );
+});
+
+test('a quote sent alone is still a well-formed block quote', () => {
+  // Markdown lazy continuation only absorbs text directly under a quote line,
+  // so the question must never be glued onto the quote without a blank line.
+  const outgoing = composeOutgoing('my question', [{ text: 'quoted line' }]);
+  assert.deepEqual(outgoing.split('\n'), ['my question', '', '> quoted line']);
+});
+
+test('previewOf clips the first line and flags the rest', () => {
+  assert.deepEqual(previewOf('short'), { head: 'short', extra: false });
+  assert.deepEqual(previewOf('a\nb'), { head: 'a', extra: true });
+  const long = previewOf('x'.repeat(200));
+  assert.equal(long.head.length, 81);
+  assert.ok(long.head.endsWith('…'));
+  assert.equal(long.extra, true);
 });
 
 test('place keeps the pill on screen near every viewport edge', () => {
-  const size = { width: 40, height: 16 };
   const corners = [
     { x: 2, y: 2 },
     { x: 1190, y: 2 },
@@ -89,15 +119,13 @@ test('place keeps the pill on screen near every viewport edge', () => {
     const at = place(anchor, { left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 });
     assert.ok(at.left >= 8, 'left ' + at.left);
     assert.ok(at.top >= 8, 'top ' + at.top);
-    assert.ok(at.left + 96 <= 1200 - 8 + 96, 'left edge fits');
-    assert.ok(at.top + 30 <= 800 - 8 + 30, 'top edge fits');
   }
 });
 
 test('place falls back to the selection rect when there is no pointer', () => {
   const at = place(null, { left: 500, top: 400, bottom: 420, width: 100, height: 20 });
   assert.equal(at.top, 400 - 30 - 8);
-  assert.equal(at.left, 500 + 50 - 48);
+  assert.equal(at.left, 500 + 50 - 96 / 2);
 });
 
 test('place clamps with the measured box, not the first-frame guess', () => {
@@ -124,109 +152,139 @@ test('sessionOf reads the nearest session scope', () => {
   assert.equal(sessionOf(lonely), undefined);
 });
 
-test('leading break only appears when the caret has text in front of it', () => {
-  const at = (start) => ({ captureInsertion: () => ({ start, end: start, draftRev: 1 }), insertText: () => true });
-  assert.equal(leadingBreak(at(0), ''), '');
-  assert.equal(leadingBreak(at(4), 'abcd'), '\n\n');
-  assert.equal(leadingBreak(at(4), 'abc\n'), '\n');
-  assert.equal(leadingBreak(at(5), 'abc\n\n'), '');
+test('cards live per session and leave the draft untouched', () => {
+  const before = cardsFor('s1').length;
+  const card = addCard('s1', 'one\ntwo  ');
+  assert.ok(card && card.id);
+  assert.equal(card.text, 'one\ntwo');
+  assert.equal(cardsFor('s1').length, before + 1);
+  assert.equal(cardsFor('s2').length, 0);
+  addCard('s2', 'other');
+  assert.equal(cardsFor('s2').length, 1);
+  removeCard('s1', card.id);
+  assert.equal(cardsFor('s1').length, before);
 });
 
-test('quoteInto inserts a reference chip when the host offers a controller', () => {
-  const seen = [];
-  const actions = {
-    captureInsertion: () => ({ start: 0, end: 0, draftRev: 1 }),
-    insertText: () => true,
-  };
-  const controller = {
-    execute: (outcome, span) => {
-      seen.push({ outcome, span });
-      return true;
+test('an empty selection never becomes a card', () => {
+  assert.equal(addCard('s1', '  \n\n '), null);
+});
+
+test('a send takes the cards and a failure puts them back', () => {
+  const card = addCard('s3', 'kept');
+  const batch = takeCards('s3');
+  assert.equal(batch.length, 1);
+  assert.equal(batch[0].id, card.id);
+  assert.equal(cardsFor('s3').length, 0);
+  restoreCards('s3', batch);
+  assert.equal(cardsFor('s3').length, 1);
+});
+
+test('subscribers hear about every change', () => {
+  let calls = 0;
+  const off = subscribe(() => {
+    calls += 1;
+  });
+  const card = addCard('s4', 'x');
+  removeCard('s4', card.id);
+  off();
+  addCard('s4', 'y');
+  assert.equal(calls, 2);
+});
+
+/** A shell whose three send-path functions record what they were handed. */
+function fakeShell(sessionId) {
+  const seen = { sinks: [], defaults: [], failures: 0 };
+  const deps = {
+    defaultSink(text, attachmentIds, mode, signal) {
+      seen.defaults.push({ text, mode, signal });
+      return Promise.resolve({ kind: 'success' });
     },
   };
-  assert.equal(quoteInto(actions, controller, '', 'one\ntwo  ', 'Quote'), 'chip');
-  assert.equal(seen.length, 1);
-  const reference = seen[0].outcome.insert;
-  assert.equal(reference.source, 'selection-followup');
-  assert.equal(reference.ref, 'one\ntwo');
-  assert.equal(reference.appearance, 'session');
-  assert.equal(reference.clipboardText, '> one\n> two\n\n');
-  assert.equal(seen[0].span.draftRev, 1);
-});
-
-test('quoteInto falls back to a block quote when no controller is available', () => {
-  let written = null;
-  const actions = {
-    captureInsertion: () => ({ draftRev: 1 }),
-    insertText: (text) => {
-      written = text;
-      return true;
+  const shell = {
+    deps,
+    sinkSerialized(attempt, draft, mode) {
+      seen.sinks.push({ draft, mode, signal: attempt && attempt.signal });
+      return deps.defaultSink(draft, [], mode, attempt && attempt.signal);
     },
-    setDraft: () => {
-      throw new Error('must not rewrite the draft when the retry succeeds');
+    settleDetachedFailure() {
+      seen.failures += 1;
     },
   };
-  assert.equal(quoteInto(actions, null, '', 'x'), 'text');
-  assert.equal(written, '> x\n\n');
+  return { shell, seen, sessionId };
+}
+
+test('the patch appends parked quotes to the outgoing text only', async () => {
+  const { shell, seen, sessionId } = fakeShell('s5');
+  addCard(sessionId, 'quoted  line');
+  const release = attachSender(shell, sessionId);
+  assert.equal(typeof release, 'function');
+
+  const attempt = { signal: 'sig-1' };
+  await shell.sinkSerialized(attempt, 'my question', 'queue');
+
+  assert.equal(seen.sinks[0].draft, 'my question', 'the draft itself is untouched');
+  assert.equal(seen.defaults[0].text, 'my question\n\n> quoted  line');
+  assert.equal(cardsFor(sessionId).length, 0, 'a successful send consumes the card');
+  release();
 });
 
-test('quoteInto retries a stale span before rewriting the draft', () => {
-  const calls = [];
-  let attempt = 0;
-  const actions = {
-    captureInsertion: () => ({ draftRev: ++attempt }),
-    insertText: (text, span) => {
-      calls.push(span.draftRev);
-      return span.draftRev === 2; // the first capture is stale
-    },
-    setDraft: () => {
-      throw new Error('must not rewrite the draft when a retry succeeds');
-    },
-  };
-  assert.equal(quoteInto(actions, null, '', 'x'), 'text');
-  assert.deepEqual(calls, [1, 2]);
+test('a failed send restores the cards instead of losing them', async () => {
+  const { shell, sessionId } = fakeShell('s6');
+  shell.deps.defaultSink = () => Promise.resolve({ kind: 'failure' });
+  const card = addCard(sessionId, 'kept');
+  const release = attachSender(shell, sessionId);
+  await shell.sinkSerialized({ signal: 'sig-2' }, 'q', 'queue');
+  assert.equal(cardsFor(sessionId).length, 1);
+  assert.equal(cardsFor(sessionId)[0].id, card.id);
+  release();
+  removeCard(sessionId, card.id);
 });
 
-test('quoteInto appends when both spans are refused', () => {
-  let written = null;
-  const actions = {
-    captureInsertion: () => null,
-    insertText: () => false,
-    setDraft: (text) => {
-      written = text;
-    },
-  };
-  assert.equal(quoteInto(actions, null, 'existing  \n', 'x'), 'text');
-  assert.equal(written, 'existing\n\n> x\n\n');
+test('a rejected send restores the cards too', async () => {
+  const { shell, sessionId } = fakeShell('s7');
+  shell.deps.defaultSink = () => Promise.reject(new Error('offline'));
+  const card = addCard(sessionId, 'kept');
+  const release = attachSender(shell, sessionId);
+  await assert.rejects(shell.sinkSerialized({ signal: 'sig-3' }, 'q', 'queue'), /offline/);
+  assert.equal(cardsFor(sessionId).length, 1);
+  release();
+  removeCard(sessionId, card.id);
 });
 
-test('quoteInto reports failure instead of pretending', () => {
-  const actions = { captureInsertion: () => null, insertText: () => false, setDraft: () => { throw new Error('locked'); } };
-  assert.equal(quoteInto(actions, null, '', 'x'), 'failed');
+test('a plain send without cards goes through untouched', async () => {
+  const { shell, seen, sessionId } = fakeShell('s8');
+  const release = attachSender(shell, sessionId);
+  await shell.sinkSerialized({ signal: 'sig-4' }, 'hello', 'queue');
+  assert.equal(seen.defaults[0].text, 'hello');
+  release();
 });
 
-test('quoteInto rejects empty selections and a closed composer', () => {
-  const actions = { captureInsertion: () => ({ draftRev: 1 }), insertText: () => true };
-  assert.equal(quoteInto(actions, null, '', '   \n\n '), 'empty');
-  assert.equal(quoteInto({}, null, '', 'x'), 'unavailable');
+test('releasing the patch restores the shell and returns in-flight cards', () => {
+  const { shell, sessionId } = fakeShell('s9');
+  const originalSink = shell.sinkSerialized;
+  const originalDefault = shell.deps.defaultSink;
+  addCard(sessionId, 'pending');
+  const release = attachSender(shell, sessionId);
+  assert.notEqual(shell.sinkSerialized, originalSink);
+  shell.sinkSerialized({ signal: 'sig-5' }, 'q', 'queue');
+  release();
+  assert.equal(shell.sinkSerialized, originalSink, 'the prototype method is back');
+  assert.equal(shell.deps.defaultSink, originalDefault);
+  assert.equal(cardsFor(sessionId).length, 1, 'an interrupted send keeps its quote');
+  removeCard(sessionId, cardsFor(sessionId)[0].id);
 });
 
-test('the quote source serializes back to the same block quote', async () => {
-  const spec = plugin.__test.sourceSpec;
-  assert.equal(spec.trigger, '@');
-  assert.equal(spec.codec.clipboardText('one\ntwo'), '> one\n> two\n\n');
-  assert.equal(await spec.codec.serialize('one\ntwo  '), '> one\n> two\n\n');
+test('a shell without the send seam is left alone', () => {
+  assert.equal(attachSender(null, 's1'), null);
+  assert.equal(attachSender({}, 's1'), null);
+  assert.equal(attachSender({ deps: {} }, 's1'), null);
 });
 
-test('the source name is unique against the neighbouring quote plugin', () => {
-  // `@quote` belongs to dsh-quote-to-composer; a second registration throws.
-  assert.notEqual(plugin.__test.sourceSpec.name, 'quote');
-});
-
-test('the plugin declares the slot it needs and its locale keys', () => {
+test('the plugin declares the slots it needs and its locale keys', () => {
   assert.equal(plugin.name, 'dsh-selection-followup');
-  // The trigger channel is looked up lazily: naming it here would make the
-  // plugin fail to load on a host that lacks it.
+  // The input hub is looked up lazily: naming it here would make the plugin
+  // fail to load on a host that does not hand it out.
   assert.deepEqual(plugin.inject, ['slots', 'locale']);
   assert.equal(typeof plugin.apply, 'function');
+  assert.equal(typeof plugin.__test.composeOutgoing, 'function');
 });

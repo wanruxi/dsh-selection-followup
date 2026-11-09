@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.0
+
+- The quote no longer enters the composer at all. Selecting text and clicking the
+  pill parks the passage as a **card above the input box**, and the box keeps
+  only the question you type — the ChatGPT / Codex shape.
+- Cards can be removed one by one with the `×` on each card, and they survive a
+  reload (mirrored into `sessionStorage`, kept per session).
+- At send time each parked quote is appended to the outgoing message as a
+  Markdown block quote. The host exposes no "extra context" channel, so the last
+  mile is a three-point patch of that session's input shell
+  (`sinkSerialized`, `settleDetachedFailure`, `deps.defaultSink`). All three are
+  patched or none: a partial patch would either send a quote twice or drop it.
+- A failed or rejected send puts the quotes back on the cards instead of losing
+  them, and unmounting the composer restores the untouched shell methods.
+- The reference-chip route from 0.3.0 is gone, along with its `@selection-followup`
+  source and codec. Nothing is inserted into the draft any more, so that channel
+  is not needed.
+- Cards render in `conversation.input.dock`, directly above the composer card.
+
 ## 0.3.0
 
 - The quote now lands in the composer as a **reference card** — the same node the
