@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0
+
+- **Renamed to `dsh-quote-tray`.** The old package name `dsh-selection-followup`
+  was already taken on npm and by another Harness plugin, so the two could never
+  be installed side by side and every listing had to carry a collision warning.
+  The bundle id, slot ids, `data-` attributes, storage key and console tag all
+  moved with it. Nothing else changed: the behaviour is what 0.4.2 shipped.
+- Installing this version replaces the old one; remove `dsh-selection-followup`
+  from the profile first if it is still listed there.
+
 ## 0.4.2
 
 - **Fixed: quotes never reached the model.** The send hook was looked up with a

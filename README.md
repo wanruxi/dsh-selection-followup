@@ -1,10 +1,10 @@
-# dsh-selection-followup · 选中追问
+# dsh-quote-tray · 选中追问
 
 在 DeepSeek Harness 的对话里选中一段文字，旁边会浮出一个小「追问」按钮。
 点一下，选中的内容就变成输入框上方的一张引用卡片，输入框里只留你要问的问题。
 
 <p align="center">
-  <img src="assets/icon-180.png" width="120" alt="dsh-selection-followup 图标">
+  <img src="assets/icon-180.png" width="120" alt="dsh-quote-tray 图标">
 </p>
 
 ## 它解决什么问题
@@ -96,11 +96,15 @@ npm run check # 两半都做语法检查
 在要启用它的 Harness profile 里：
 
 ```
-dsh plugin --profile <profile> add dsh-selection-followup
+dsh plugin --profile <profile> add dsh-quote-tray
 ```
 
 也可以把本仓库目录直接作为 bundle 装进插件管理器。浏览器半边立即生效，刷新页面即可，
 不用重启。
+
+0.5.0 起包名从 `dsh-selection-followup` 改成 `dsh-quote-tray`：旧名字在 npm 上和另一个
+Harness 插件上都被占了，两者没法装在同一台机器上。装过旧版的话，先从 profile 里移除
+`dsh-selection-followup` 再装这个。
 
 ## 兼容性
 
@@ -109,7 +113,7 @@ dsh plugin --profile <profile> add dsh-selection-followup
 声明的是实测下限。
 
 宿主若把 `sinkSerialized` / `deps.defaultSink` 改名，卡片照常能加能删，只是不再自动
-追加到消息里；这种情况下浏览器控制台会有一行 `[selection-followup] could not hook this
+追加到消息里；这种情况下浏览器控制台会有一行 `[quote-tray] could not hook this
 compose box` 的警告，而不是静默失效。
 
 `conversation` 服务是用 `ctx.get('conversation')` 取的，没有写进 `inject`。原因是动态

@@ -305,7 +305,7 @@ test('shellFor survives a host that has no conversation service', () => {
 });
 
 test('the plugin declares the slots it needs and its locale keys', () => {
-  assert.equal(plugin.name, 'dsh-selection-followup');
+  assert.equal(plugin.name, 'dsh-quote-tray');
   // The input hub is looked up lazily: naming it here would make the plugin
   // fail to load on a host that does not hand it out.
   assert.deepEqual(plugin.inject, ['slots', 'locale']);

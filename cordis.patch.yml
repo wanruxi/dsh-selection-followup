@@ -2,5 +2,5 @@
 # (a plain Cordis plugin); the `dsh.client` declaration makes the web app load
 # its ./client bundle as the browser half.
 - insert:
-    - id: dsh-selection-followup
-      name: dsh-selection-followup
+    - id: dsh-quote-tray
+      name: dsh-quote-tray
