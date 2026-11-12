@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.1
+
+- The caret now returns to the composer the moment a quote becomes a card, so
+  the follow-up can be typed straight away. The focus goes through the input
+  shell's own `focus()` — Lexical restores the position it last held, whereas a
+  bare DOM focus on the contenteditable would drop the caret at the start. When
+  the shell cannot be reached, the composer host node
+  (`[data-composer-input]`, scoped to the session when possible) is the fallback.
+  Failing to focus never stops the card from being added.
+
 ## 0.5.0
 
 - **Renamed to `dsh-quote-tray`.** The old package name `dsh-selection-followup`

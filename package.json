@@ -1,6 +1,6 @@
 {
   "name": "dsh-quote-tray",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Select text in a DeepSeek Harness conversation and park it as a quote card above the composer; the input box keeps only your question.",
   "license": "MIT",
   "author": "wanruxi",

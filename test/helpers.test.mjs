@@ -60,12 +60,12 @@ function load() {
     globalThis.requestAnimationFrame,
     globalThis.cancelAnimationFrame,
   );
-  return { plugin, window: fakeWindow, store };
+  return { plugin, window: fakeWindow, store, document: scope.document };
 }
 
-const { plugin } = load();
+const { plugin, document: fakeDocument } = load();
 const { normalize, asQuote, quoteBlock, composeOutgoing, previewOf, place, offScreen, sessionOf } = plugin.__test;
-const { cardsFor, addCard, removeCard, takeCards, restoreCards, subscribe, attachSender, shellFor } = plugin.__test;
+const { cardsFor, addCard, removeCard, takeCards, restoreCards, subscribe, attachSender, shellFor, focusComposer } = plugin.__test;
 
 test('normalize collapses CRLF, trailing spaces and blank runs', () => {
   assert.equal(normalize('a  \r\nb\r\n\r\n\r\n\r\nc\n\n'), 'a\nb\n\nc');
@@ -302,6 +302,36 @@ test('shellFor survives a host that has no conversation service', () => {
   assert.equal(shellFor({ get: () => undefined }, 's1'), null);
   assert.equal(shellFor(null, 's1'), null);
   assert.equal(shellFor({ get: () => ({ input: {} }) }, 's1'), null);
+});
+
+test('focusComposer asks the shell first, so Lexical restores the caret', () => {
+  // A bare DOM focus on the contenteditable would drop the caret at the start;
+  // the shell's own focus is the door that restores the stored selection.
+  let calls = 0;
+  const shell = { focus: () => { calls += 1; } };
+  const root = { get: (name) => (name === 'conversation' ? { input: { shell: () => shell } } : undefined) };
+  assert.equal(focusComposer(root, 's1'), true);
+  assert.equal(calls, 1);
+});
+
+test('focusComposer falls back to the composer host node', () => {
+  let focused = 0;
+  fakeDocument.querySelector = (selector) => {
+    assert.match(selector, /\[data-composer-input\]$/);
+    return { focus: () => { focused += 1; } };
+  };
+  try {
+    // No shell at all: the DOM host is the only way back to the input box.
+    assert.equal(focusComposer({ get: () => undefined }, 's1'), true);
+    assert.equal(focused, 1);
+  } finally {
+    delete fakeDocument.querySelector;
+  }
+});
+
+test('focusComposer never throws when there is nothing to focus', () => {
+  assert.equal(focusComposer(null, undefined), false);
+  assert.equal(focusComposer({ get: () => ({ input: { shell: () => ({ focus() { throw new Error('gone'); } }) } }) }, 's1'), false);
 });
 
 test('the plugin declares the slots it needs and its locale keys', () => {
